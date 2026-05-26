@@ -906,7 +906,14 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [tab, setTab] = useState("leaderboard");
   const [qrOpen, setQrOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 500);
   const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 500);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -924,6 +931,24 @@ function App() {
     glow = "magenta";
   }
 
+  // ── Mobile: full-screen, no phone frame ──
+  if (isMobile) {
+    return (
+      <div style={{
+        width: "100vw", height: "100dvh",
+        background: "#050116",
+        position: "relative", overflow: "hidden",
+      }}>
+        <div ref={scrollRef} style={{ width: "100%", height: "100%", overflowY: "auto", overflowX: "hidden", scrollbarWidth: "none" }}>
+          {screen}
+        </div>
+        {loggedIn && <BottomNav current={tab} setCurrent={setTab} onShowQr={() => setQrOpen(true)} />}
+        {loggedIn && qrOpen && <MemberQrModal onClose={() => setQrOpen(false)} />}
+      </div>
+    );
+  }
+
+  // ── Desktop: phone frame mockup ──
   const navBtnStyle = (active) => ({
     padding: "8px 14px", borderRadius: 10,
     border: `1px solid ${active ? NEON.blue.core : "rgba(255,255,255,0.12)"}`,
