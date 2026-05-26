@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AX SHISHA · 消費排行榜</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #020010; color: #fff; }
+  body { font-family: "Inter", system-ui, sans-serif; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ─── Neon palette ────────────────────────────────────────────
+const NEON = {
+  blue:    { core: "oklch(0.75 0.22 260)", glow: "oklch(0.62 0.25 265)", soft: "oklch(0.45 0.20 260 / 0.35)" },
+  magenta: { core: "oklch(0.72 0.30 340)", glow: "oklch(0.58 0.30 335)", soft: "oklch(0.45 0.25 335 / 0.35)" },
+  yellow:  { core: "oklch(0.92 0.17 95)",  glow: "oklch(0.85 0.18 90)",  soft: "oklch(0.70 0.18 90 / 0.30)" },
+};
+
+const levelColor = { "VIP 1": "blue", "VIP 2": "magenta", "VIP 3": "yellow" };
+const fmt = (n) => n.toLocaleString("en-US");
+
+// ─── Mock data ───────────────────────────────────────────────
+const LEADERBOARD = [
+  { id: 1,  name: "Vincent C.",  handle: "@vincentc",  points: 48720, level: "VIP 3" },
+  { id: 2,  name: "Mia Lin",     handle: "@mialin",    points: 42180, level: "VIP 3" },
+  { id: 3,  name: "Tony H.",     handle: "@tonyh",     points: 38940, level: "VIP 3" },
+  { id: 4,  name: "Sasha W.",    handle: "@sashaw",    points: 31250, level: "VIP 2" },
+  { id: 5,  name: "Jordan K.",   handle: "@jordank",   points: 28640, level: "VIP 2" },
+  { id: 6,  name: "Ethan P.",    handle: "@ethanp",    points: 26120, level: "VIP 2" },
+  { id: 7,  name: "Cole R.",     handle: "@coler",     points: 22980, level: "VIP 2" },
+  { id: 8,  name: "Aria Z.",     handle: "@ariaz",     points: 21450, level: "VIP 2" },
+  { id: 9,  name: "Marcus T.",   handle: "@marcust",   points: 19720, level: "VIP 1" },
+  { id: 10, name: "Lena S.",     handle: "@lenas",     points: 18340, level: "VIP 1" },
+  { id: 11, name: "Kai V.",      handle: "@kaiv",      points: 17280, level: "VIP 1" },
+  { id: 12, name: "Ren O.",      handle: "@reno",      points: 16920, level: "VIP 1" },
+];
+
+const ME = {
+  name: "You", handle: "@youraxshisha",
+  points: 12480, level: "VIP 1", rank: 27, totalUsers: 312,
+  nextLevel: "VIP 2", nextLevelAt: 20000,
+};
+
+const MY_VOUCHERS = [
+  { id: "v1", title: "Mojito 經典系列",  subtitle: "兌換券",           count: 2, expiry: "2026/06/30", color: "magenta", tag: "VIP 1" },
+  { id: "v2", title: "水煙加炭一輪",     subtitle: "免費加值",          count: 3, expiry: "2026/07/15", color: "blue",    tag: "VIP 1" },
+  { id: "v3", title: "$200 折價券",      subtitle: "單次消費滿 $800",   count: 1, expiry: "2026/06/12", color: "yellow",  tag: "生日禮" },
+  { id: "v4", title: "包廂升級",         subtitle: "免費升級到 Lounge B", count: 1, expiry: "2026/08/30", color: "magenta", tag: "VIP 1" },
+];
+
+const LEVEL_BENEFITS = {
+  "VIP 1": {
+    color: "blue", threshold: 0,
+    items: [
+      { name: "入會迎賓券",        desc: "首次到店免費水煙口含 1 入" },
+      { name: "生日 $200 折價券",  desc: "生日當月寄送，限當月使用" },
+      { name: "消費 10% 積分回饋", desc: "每 $1 消費累積 1 點" },
+    ],
+  },
+  "VIP 2": {
+    color: "magenta", threshold: 20000,
+    items: [
+      { name: "包含 VIP 1 所有福利",  desc: "權益自動升級套用" },
+      { name: "Mojito 系列買一送一",  desc: "每月一次，平日全時段" },
+      { name: "包廂升級券 ×1",        desc: "免費升級到 Lounge B 包廂" },
+      { name: "消費 15% 積分回饋",    desc: "每 $1 消費累積 1.5 點" },
+    ],
+  },
+  "VIP 3": {
+    color: "yellow", threshold: 50000,
+    items: [
+      { name: "包含 VIP 2 所有福利",    desc: "權益自動升級套用" },
+      { name: "專屬 Shisha 口味試飲",   desc: "新品上市優先體驗" },
+      { name: "生日專屬包廂禮",         desc: "Lounge A 免費 3 小時 + 蛋糕" },
+      { name: "消費 20% 積分回饋",      desc: "每 $1 消費累積 2 點" },
+      { name: "免預約優先入座",         desc: "週末熱門時段保留席位" },
+    ],
+  },
+};
+
+// ─── Icons ───────────────────────────────────────────────────
+const ICONS = {
+  trophy: (s = 22) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 4h12v3a6 6 0 0 1-12 0V4Z" />
+      <path d="M6 6H3a3 3 0 0 0 3 4" />
+      <path d="M18 6h3a3 3 0 0 1-3 4" />
+      <path d="M9 14v2.5a2.5 2.5 0 0 1-2.5 2.5H6v1h12v-1h-.5A2.5 2.5 0 0 1 15 16.5V14" />
+    </svg>
+  ),
+  gift: (s = 22) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="8" width="18" height="4" rx="1" />
+      <path d="M5 12v9h14v-9" />
+      <path d="M12 8v13" />
+      <path d="M12 8c-2 0-4-1-4-3s2-2 4 0 0 3 0 3Z" />
+      <path d="M12 8c2 0 4-1 4-3s-2-2-4 0 0 3 0 3Z" />
+    </svg>
+  ),
+  crown: (s = 16) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 19h18l-1.5-9-4 3-3.5-6-3.5 6-4-3L3 19Z" />
+    </svg>
+  ),
+  chat: (s = 22) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 3C6.5 3 2 6.7 2 11.3c0 2.7 1.6 5 4 6.5L5 22l4-2.4c1 .2 2 .3 3 .3 5.5 0 10-3.7 10-8.6S17.5 3 12 3Z" />
+    </svg>
+  ),
+  sparkle: (s = 14) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2 13.5 9 21 10.5 13.5 12 12 19 10.5 12 3 10.5 10.5 9 12 2Z" />
+    </svg>
+  ),
+  qr: (s = 22) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3zM20 14h1M14 20h3v1h-3zM20 17h1v4" strokeLinecap="round" />
+    </svg>
+  ),
+  lock: (s = 14) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  ),
+};
+
+// ─── Shared components ────────────────────────────────────────
+
+function NeonText({ color = "blue", children, size = 28, weight = 800, family = "Sora", style = {} }) {
+  const c = NEON[color];
+  return (
+    <span style={{
+      fontFamily: family, fontWeight: weight, fontSize: size, color: "#fff",
+      textShadow: `0 0 6px ${c.core}, 0 0 14px ${c.glow}, 0 0 28px ${c.glow}`,
+      ...style,
+    }}>{children}</span>
+  );
+}
+
+function Avatar({ name, color = "blue", size = 44 }) {
+  const c = NEON[color];
+  const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: `radial-gradient(circle at 30% 30%, ${c.glow}, #1a0b3d 70%)`,
+      display: "grid", placeItems: "center",
+      color: "#fff", fontFamily: "Sora", fontWeight: 700, fontSize: size * 0.36,
+      border: `1.5px solid ${c.core}`,
+      boxShadow: `inset 0 0 12px ${c.soft}, 0 0 8px ${c.soft}`,
+      flexShrink: 0,
+    }}>{initials}</div>
+  );
+}
+
+function NeonRing({ color = "blue", padding = 1, children, intensity = 1 }) {
+  const c = NEON[color];
+  return (
+    <div style={{
+      borderRadius: 999, padding,
+      background: `linear-gradient(135deg, ${c.core}, ${c.glow})`,
+      boxShadow: `0 0 ${10 * intensity}px ${c.soft}, 0 0 ${24 * intensity}px ${c.soft}`,
+    }}>{children}</div>
+  );
+}
+
+function AxLogo({ scale = 1 }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 * scale }}>
+      <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4 * scale }}>
+        <span style={{ color: NEON.yellow.core, textShadow: `0 0 6px ${NEON.yellow.core}, 0 0 14px ${NEON.yellow.glow}`, fontSize: 14 * scale, marginRight: 4 * scale }}>
+          {ICONS.sparkle(14 * scale)}
+        </span>
+        <span style={{
+          fontFamily: "'Orbitron', Sora, sans-serif", fontWeight: 900, fontSize: 52 * scale,
+          letterSpacing: "0.04em", color: "transparent",
+          WebkitTextStroke: `1.5px ${NEON.blue.core}`,
+          textShadow: `0 0 8px ${NEON.blue.core}, 0 0 18px ${NEON.blue.glow}, 0 0 32px ${NEON.blue.glow}`,
+        }}>AX</span>
+        <svg width={120 * scale} height={50 * scale} viewBox="0 0 120 50" style={{ position: "absolute", left: "50%", top: "55%", transform: "translate(-50%, -50%)", pointerEvents: "none" }}>
+          <ellipse cx="60" cy="25" rx="55" ry="18" transform="rotate(-12 60 25)" fill="none" stroke={NEON.yellow.core} strokeWidth="1.5"
+            style={{ filter: `drop-shadow(0 0 4px ${NEON.yellow.core}) drop-shadow(0 0 10px ${NEON.yellow.glow})` }} />
+        </svg>
+        <span style={{ color: NEON.yellow.core, textShadow: `0 0 6px ${NEON.yellow.core}, 0 0 14px ${NEON.yellow.glow}`, fontSize: 18 * scale, marginLeft: 4 * scale }}>
+          {ICONS.sparkle(18 * scale)}
+        </span>
+      </div>
+      <div style={{
+        fontFamily: "'Orbitron', Sora, sans-serif", fontWeight: 700, fontSize: 18 * scale,
+        letterSpacing: "0.32em", color: NEON.yellow.core,
+        textShadow: `0 0 6px ${NEON.yellow.core}, 0 0 14px ${NEON.yellow.glow}, 0 0 28px ${NEON.yellow.glow}`,
+        marginTop: -6 * scale,
+      }}>SHISHA</div>
+    </div>
+  );
+}
+
+function NeonStreakBg({ density = 1 }) {
+  const lines = [];
+  for (let i = 0; i < 12 * density; i++) {
+    const x = (i * 73) % 100;
+    const y = (i * 47) % 100;
+    const len = 12 + ((i * 29) % 30);
+    const c = i % 3 !== 0 ? NEON.blue : NEON.magenta;
+    lines.push(
+      <div key={i} style={{
+        position: "absolute", left: `${x}%`, top: `${y}%`,
+        width: `${len}%`, height: 1.5,
+        background: c.core, opacity: 0.55,
+        transform: "rotate(-28deg)", transformOrigin: "left center",
+        boxShadow: `0 0 6px ${c.core}, 0 0 14px ${c.glow}`,
+      }} />
+    );
+  }
+  return <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>{lines}</div>;
+}
+
+// ─── Login Screen ─────────────────────────────────────────────
+
+function LoginScreen({ onLogin }) {
+  return (
+    <div style={{
+      position: "relative", width: "100%", height: "100%",
+      background: "radial-gradient(120% 80% at 50% 0%, oklch(0.20 0.15 280) 0%, #0a0524 55%, #050116 100%)",
+      display: "flex", flexDirection: "column", overflow: "hidden",
+    }}>
+      <NeonStreakBg density={1.4} />
+      <div style={{
+        position: "absolute", left: "50%", top: "30%", transform: "translate(-50%, -50%)",
+        width: 380, height: 380, borderRadius: "50%",
+        background: `radial-gradient(circle, ${NEON.blue.soft} 0%, transparent 60%)`,
+        filter: "blur(20px)", pointerEvents: "none",
+      }} />
+      <div style={{ height: 44 }} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 32px", zIndex: 1 }}>
+        <AxLogo scale={1} />
+        <div style={{ marginTop: 32, textAlign: "center" }}>
+          <div style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 17, color: "#fff", letterSpacing: "0.04em", lineHeight: 1.4 }}>
+            會員消費排行榜
+          </div>
+          <div style={{ fontFamily: "Inter", fontWeight: 400, fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 6, lineHeight: 1.6 }}>
+            登入後累積消費點數，<br />解鎖 VIP 等級與專屬福利
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: "0 24px 48px", zIndex: 1 }}>
+        <button onClick={onLogin} style={{
+          width: "100%", height: 56, borderRadius: 16, border: "none",
+          background: "linear-gradient(180deg, #06C755 0%, #04a847 100%)",
+          color: "#fff", fontFamily: "Sora", fontWeight: 700, fontSize: 16,
+          letterSpacing: "0.02em", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+          cursor: "pointer",
+          boxShadow: "0 0 18px rgba(6, 199, 85, 0.55), 0 8px 24px rgba(0,0,0,0.4)",
+        }}>
+          {ICONS.chat(20)}
+          使用 LINE 帳號登入
+        </button>
+        <div style={{ marginTop: 16, textAlign: "center", fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>
+          點擊登入即表示同意 AX SHISHA 會員條款與隱私權政策
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", paddingBottom: 8 }}>
+        <div style={{ width: 134, height: 5, borderRadius: 999, background: "rgba(255,255,255,0.4)" }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Leaderboard ─────────────────────────────────────────────
+
+function PodiumColumn({ rank, person, height, color }) {
+  const c = NEON[color];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, width: 84 }}>
+      <div style={{ position: "relative" }}>
+        {rank === 1 && (
+          <div style={{
+            position: "absolute", top: -22, left: "50%", transform: "translateX(-50%)",
+            color: NEON.yellow.core,
+            filter: `drop-shadow(0 0 4px ${NEON.yellow.core}) drop-shadow(0 0 10px ${NEON.yellow.glow})`,
+          }}>{ICONS.crown(28)}</div>
+        )}
+        <NeonRing color={color} intensity={rank === 1 ? 1.4 : 1} padding={2}>
+          <Avatar name={person.name} color={color} size={rank === 1 ? 62 : 52} />
+        </NeonRing>
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 12, color: "#fff", lineHeight: 1.2 }}>{person.name}</div>
+        <div style={{ fontFamily: "Inter", fontSize: 10, color: c.core, marginTop: 2, textShadow: `0 0 6px ${c.soft}` }}>{fmt(person.points)}</div>
+      </div>
+      <div style={{
+        width: 72, height,
+        borderRadius: "10px 10px 0 0",
+        background: `linear-gradient(180deg, ${c.soft} 0%, transparent 100%)`,
+        border: `1px solid ${c.core}`, borderBottom: "none",
+        boxShadow: `0 0 12px ${c.soft}, inset 0 -10px 20px ${c.soft}`,
+        display: "grid", placeItems: "center",
+      }}>
+        <div style={{
+          fontFamily: "'Orbitron', Sora", fontWeight: 900, fontSize: 30,
+          color: "transparent", WebkitTextStroke: `1.2px ${c.core}`,
+          textShadow: `0 0 10px ${c.glow}`,
+        }}>{rank}</div>
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardScreen() {
+  const [tab, setTab] = useState("週榜");
+  const top3 = LEADERBOARD.slice(0, 3);
+  const rest = LEADERBOARD.slice(3);
+
+  return (
+    <div style={{
+      position: "relative", width: "100%", minHeight: "100%",
+      background: "radial-gradient(120% 60% at 50% 0%, oklch(0.20 0.15 280) 0%, #0a0524 50%, #050116 100%)",
+      paddingBottom: 100,
+    }}>
+      <NeonStreakBg density={0.6} />
+      <div style={{ height: 44 }} />
+
+      <div style={{ padding: "12px 20px 4px", position: "relative", zIndex: 1 }}>
+        <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          AX SHISHA · 消費排行榜
+        </div>
+        <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 24, color: "#fff", marginTop: 4 }}>Leaderboard</div>
+      </div>
+
+      <div style={{ padding: "16px 20px 0", position: "relative", zIndex: 1 }}>
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 14, padding: 4, gap: 4,
+        }}>
+          {["週榜", "月榜", "總榜"].map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{
+              padding: "8px 0", borderRadius: 10, border: "none",
+              background: t === tab ? `linear-gradient(135deg, ${NEON.blue.core}, ${NEON.magenta.core})` : "transparent",
+              color: "#fff", fontFamily: "Sora", fontWeight: 600, fontSize: 13,
+              cursor: "pointer",
+              boxShadow: t === tab ? `0 0 16px ${NEON.magenta.soft}` : "none",
+            }}>{t}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 24, padding: "0 20px", display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 12, position: "relative", zIndex: 1 }}>
+        <PodiumColumn rank={2} person={top3[1]} height={72}  color="magenta" />
+        <PodiumColumn rank={1} person={top3[0]} height={104} color="yellow" />
+        <PodiumColumn rank={3} person={top3[2]} height={56}  color="blue" />
+      </div>
+
+      <div style={{ padding: "20px 20px 0", position: "relative", zIndex: 1 }}>
+        <div style={{
+          borderRadius: 18, padding: "14px 16px",
+          background: "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+          border: `1.5px solid ${NEON.blue.core}`,
+          boxShadow: `0 0 18px ${NEON.blue.soft}, inset 0 0 18px ${NEON.blue.soft}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Avatar name={ME.name} color="blue" size={48} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 15, color: "#fff" }}>你</div>
+                <span style={{
+                  fontFamily: "Sora", fontSize: 10, fontWeight: 700,
+                  padding: "2px 8px", borderRadius: 999,
+                  background: `linear-gradient(135deg, ${NEON.blue.core}, ${NEON.blue.glow})`,
+                  color: "#fff", letterSpacing: "0.05em",
+                  boxShadow: `0 0 8px ${NEON.blue.soft}`,
+                }}>{ME.level}</span>
+              </div>
+              <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{ME.handle}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontFamily: "'Orbitron', Sora", fontWeight: 900, fontSize: 22, color: "#fff", lineHeight: 1, textShadow: `0 0 8px ${NEON.blue.glow}` }}>#{ME.rank}</div>
+              <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>/ {ME.totalUsers} 人</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.5)" }}>累積點數</div>
+              <div style={{ fontFamily: "'Orbitron', Sora", fontWeight: 800, fontSize: 20, color: NEON.blue.core, textShadow: `0 0 10px ${NEON.blue.glow}`, marginTop: 2 }}>
+                {fmt(ME.points)}
+              </div>
+            </div>
+            <div style={{ textAlign: "right", fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.6)", lineHeight: 1.4 }}>
+              再 <span style={{ color: NEON.magenta.core, fontWeight: 700 }}>{fmt(ME.nextLevelAt - ME.points)}</span> 點<br />
+              升 <span style={{ color: NEON.magenta.core, fontWeight: 700 }}>{ME.nextLevel}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: "20px 20px 0", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 13, color: "rgba(255,255,255,0.7)", letterSpacing: "0.04em" }}>4 – 50 名</div>
+          <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>更新於 14:32</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rest.map((p, i) => {
+            const rank = i + 4;
+            const c = NEON[levelColor[p.level]];
+            return (
+              <div key={p.id} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "12px 14px", borderRadius: 14,
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                <div style={{ fontFamily: "'Orbitron', Sora", fontWeight: 700, fontSize: 14, color: "rgba(255,255,255,0.5)", width: 24, textAlign: "center" }}>{rank}</div>
+                <Avatar name={p.name} color={levelColor[p.level]} size={36} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 13, color: "#fff" }}>{p.name}</div>
+                    <span style={{
+                      fontFamily: "Sora", fontSize: 9, fontWeight: 700,
+                      padding: "1.5px 6px", borderRadius: 999,
+                      background: c.soft, color: c.core,
+                      border: `1px solid ${c.core}`, letterSpacing: "0.04em",
+                    }}>{p.level}</span>
+                  </div>
+                  <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{p.handle}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'Orbitron', Sora", fontWeight: 700, fontSize: 13, color: "#fff" }}>{fmt(p.points)}</div>
+                  <div style={{ fontFamily: "Inter", fontSize: 9, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>點</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Rewards Screen ───────────────────────────────────────────
+
+function VoucherCard({ v }) {
+  const c = NEON[v.color];
+  return (
+    <div style={{
+      position: "relative", borderRadius: 16, padding: "16px 18px",
+      background: `linear-gradient(135deg, ${c.soft}, rgba(10,5,36,0.6))`,
+      border: `1.5px solid ${c.core}`,
+      boxShadow: `0 0 14px ${c.soft}, inset 0 0 14px ${c.soft}`,
+      display: "flex", alignItems: "center", gap: 14, overflow: "hidden",
+    }}>
+      <div style={{
+        position: "absolute", top: 0, right: 0, padding: "3px 10px",
+        background: c.core, color: "#0a0524",
+        fontFamily: "Sora", fontWeight: 800, fontSize: 9,
+        borderRadius: "0 14px 0 10px", letterSpacing: "0.05em",
+      }}>{v.tag}</div>
+      <div style={{
+        width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
+        display: "grid", placeItems: "center",
+        background: `radial-gradient(circle at 30% 30%, ${c.glow}, transparent 70%)`,
+        border: `2px solid ${c.core}`,
+        boxShadow: `0 0 14px ${c.soft}, inset 0 0 14px ${c.soft}`,
+      }}>
+        <div style={{ textAlign: "center", lineHeight: 1 }}>
+          <div style={{ fontFamily: "'Orbitron', Sora", fontWeight: 900, fontSize: 26, color: "#fff", textShadow: `0 0 8px ${c.glow}` }}>{v.count}</div>
+          <div style={{ fontFamily: "Inter", fontSize: 9, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>張</div>
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "Inter", fontSize: 10, color: c.core, letterSpacing: "0.08em", textTransform: "uppercase", textShadow: `0 0 6px ${c.soft}` }}>{v.subtitle}</div>
+        <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 16, color: "#fff", marginTop: 2 }}>{v.title}</div>
+        <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>有效期限 · {v.expiry}</div>
+      </div>
+      <button style={{
+        height: 32, padding: "0 12px", borderRadius: 10,
+        background: c.core, color: "#0a0524",
+        fontFamily: "Sora", fontWeight: 700, fontSize: 11,
+        border: "none", cursor: "pointer",
+        boxShadow: `0 0 10px ${c.soft}`,
+      }}>使用</button>
+    </div>
+  );
+}
+
+function BenefitItem({ item, color, locked }) {
+  const c = NEON[color];
+  return (
+    <div style={{
+      display: "flex", gap: 12, padding: "12px 14px", borderRadius: 12,
+      background: locked ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)",
+      border: `1px solid ${locked ? "rgba(255,255,255,0.06)" : c.soft}`,
+      opacity: locked ? 0.55 : 1,
+    }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+        display: "grid", placeItems: "center",
+        background: locked ? "rgba(255,255,255,0.06)" : c.soft,
+        border: `1px solid ${locked ? "rgba(255,255,255,0.1)" : c.core}`,
+        color: locked ? "rgba(255,255,255,0.5)" : c.core,
+      }}>
+        {locked ? ICONS.lock(14) : ICONS.sparkle(12)}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 13, color: "#fff" }}>{item.name}</div>
+        <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 3, lineHeight: 1.5 }}>{item.desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function RewardsScreen() {
+  const [tab, setTab] = useState("vouchers");
+  const [levelTab, setLevelTab] = useState(ME.level);
+  const myLevelColor = levelColor[ME.level];
+  const c = NEON[myLevelColor];
+  const totalVouchers = MY_VOUCHERS.reduce((s, v) => s + v.count, 0);
+
+  return (
+    <div style={{
+      position: "relative", width: "100%", minHeight: "100%",
+      background: "radial-gradient(120% 60% at 50% 0%, oklch(0.22 0.18 320) 0%, #0a0524 50%, #050116 100%)",
+      paddingBottom: 100,
+    }}>
+      <NeonStreakBg density={0.5} />
+      <div style={{ height: 44 }} />
+      <div style={{ padding: "8px 20px 0", position: "relative", zIndex: 1 }}>
+        <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.12em", textTransform: "uppercase" }}>我的會員</div>
+        <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 24, color: "#fff", marginTop: 4 }}>福利中心</div>
+      </div>
+
+      <div style={{ padding: "16px 20px 0", position: "relative", zIndex: 1 }}>
+        <div style={{
+          position: "relative", borderRadius: 20, padding: "18px 18px 16px",
+          background: `linear-gradient(135deg, ${c.soft}, rgba(20,10,60,0.4))`,
+          border: `1.5px solid ${c.core}`,
+          boxShadow: `0 0 22px ${c.soft}, inset 0 0 22px ${c.soft}`,
+          overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", right: -8, bottom: -16,
+            fontFamily: "'Orbitron', Sora", fontWeight: 900, fontSize: 110,
+            color: "transparent", WebkitTextStroke: `1.2px ${c.core}`,
+            opacity: 0.18, pointerEvents: "none",
+          }}>{ME.level.replace(" ", "")}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative" }}>
+            <div>
+              <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em" }}>目前等級</div>
+              <div style={{ marginTop: 4 }}>
+                <NeonText color={myLevelColor} size={28} weight={900} family="'Orbitron', Sora">{ME.level}</NeonText>
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.55)" }}>累積點數</div>
+              <div style={{ fontFamily: "'Orbitron', Sora", fontWeight: 900, fontSize: 24, color: "#fff", textShadow: `0 0 10px ${c.glow}`, marginTop: 2 }}>
+                {fmt(ME.points)}
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
+              <span>{ME.level}</span>
+              <span style={{ color: NEON.magenta.core, textShadow: `0 0 6px ${NEON.magenta.soft}` }}>{ME.nextLevel}</span>
+            </div>
+            <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{
+                width: `${(ME.points / ME.nextLevelAt) * 100}%`, height: "100%",
+                background: `linear-gradient(90deg, ${c.core}, ${NEON.magenta.core})`,
+                boxShadow: `0 0 10px ${NEON.magenta.soft}`, borderRadius: 999,
+              }} />
+            </div>
+            <div style={{ marginTop: 6, fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.5)" }}>
+              再消費 <span style={{ color: NEON.magenta.core, fontWeight: 700 }}>${fmt(ME.nextLevelAt - ME.points)}</span> 即可升級
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: "20px 20px 0", position: "relative", zIndex: 1 }}>
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr",
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 14, padding: 4, gap: 4,
+        }}>
+          {[
+            { id: "vouchers", label: "我的優惠券", badge: totalVouchers },
+            { id: "benefits", label: "會員福利",   badge: null },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: "10px 0", borderRadius: 10, border: "none",
+              background: t.id === tab ? `linear-gradient(135deg, ${NEON.blue.core}, ${NEON.magenta.core})` : "transparent",
+              color: "#fff", fontFamily: "Sora", fontWeight: 600, fontSize: 13,
+              cursor: "pointer",
+              boxShadow: t.id === tab ? `0 0 16px ${NEON.magenta.soft}` : "none",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}>
+              {t.label}
+              {t.badge != null && (
+                <span style={{
+                  background: t.id === tab ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
+                  color: "#fff", fontSize: 10, fontWeight: 700,
+                  padding: "1.5px 7px", borderRadius: 999,
+                }}>{t.badge}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 20px 0", position: "relative", zIndex: 1 }}>
+        {tab === "vouchers" ? (
+          <>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 13, color: "#fff" }}>剩餘可使用券</div>
+              <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+                共 <span style={{ color: NEON.yellow.core, fontWeight: 700 }}>{totalVouchers}</span> 張
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {MY_VOUCHERS.map(v => <VoucherCard key={v.id} v={v} />)}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {["VIP 1", "VIP 2", "VIP 3"].map(lv => {
+                const lc = NEON[levelColor[lv]];
+                const active = lv === levelTab;
+                return (
+                  <button key={lv} onClick={() => setLevelTab(lv)} style={{
+                    flex: 1, padding: "9px 0", borderRadius: 10,
+                    border: `1px solid ${active ? lc.core : "rgba(255,255,255,0.1)"}`,
+                    background: active ? lc.soft : "transparent",
+                    color: active ? lc.core : "rgba(255,255,255,0.55)",
+                    fontFamily: "Sora", fontWeight: 700, fontSize: 12,
+                    cursor: "pointer",
+                    boxShadow: active ? `0 0 10px ${lc.soft}` : "none",
+                    textShadow: active ? `0 0 6px ${lc.soft}` : "none",
+                    letterSpacing: "0.04em", position: "relative",
+                  }}>
+                    {lv}
+                    {lv === ME.level && (
+                      <span style={{
+                        position: "absolute", top: -6, right: -4,
+                        background: NEON.yellow.core, color: "#0a0524",
+                        fontFamily: "Sora", fontSize: 8, fontWeight: 800,
+                        padding: "2px 5px", borderRadius: 999,
+                      }}>我</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 10, lineHeight: 1.6 }}>
+              {levelTab} 等級享有以下福利
+              {levelTab !== ME.level && (
+                <span style={{ color: NEON[levelColor[levelTab]].core }}>
+                  　·　{LEVEL_BENEFITS[levelTab].threshold > ME.points
+                    ? `需累積 ${fmt(LEVEL_BENEFITS[levelTab].threshold)} 點解鎖`
+                    : "已達成"}
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {LEVEL_BENEFITS[levelTab].items.map((it, i) => (
+                <BenefitItem key={i} item={it} color={levelColor[levelTab]} locked={LEVEL_BENEFITS[levelTab].threshold > ME.points} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Member QR Modal ──────────────────────────────────────────
+
+function MemberQrModal({ onClose }) {
+  const memberCode = "AX-2048-7391-Y";
+  const size = 25;
+  const hash = (i, j) => {
+    const x = Math.sin(i * 374.7 + j * 91.3 + 13.1) * 43758.5453;
+    return (x - Math.floor(x)) > 0.5;
+  };
+  const cells = [];
+  for (let i = 0; i < size; i++)
+    for (let j = 0; j < size; j++)
+      cells.push({ i, j, on: hash(i, j) });
+
+  const isFinder = (i, j) => {
+    const inBox = (oi, oj) => i >= oi && i < oi + 7 && j >= oj && j < oj + 7;
+    return inBox(0, 0) || inBox(0, size - 7) || inBox(size - 7, 0);
+  };
+  const finderOn = (i, j) => {
+    const check = (oi, oj) => {
+      const li = i - oi, lj = j - oj;
+      return li === 0 || li === 6 || lj === 0 || lj === 6 || (li >= 2 && li <= 4 && lj >= 2 && lj <= 4);
+    };
+    if (i >= 0 && i < 7 && j >= 0 && j < 7) return check(0, 0);
+    if (i >= 0 && i < 7 && j >= size - 7) return check(0, size - 7);
+    if (i >= size - 7 && j >= 0 && j < 7) return check(size - 7, 0);
+    return false;
+  };
+
+  return (
+    <div onClick={onClose} style={{
+      position: "absolute", inset: 0,
+      background: "rgba(2,0,16,0.78)", backdropFilter: "blur(8px)",
+      zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+    }}>
+      <style>{`
+        @keyframes qrPopIn { from { opacity:0; transform:scale(0.92) translateY(8px) } to { opacity:1; transform:scale(1) translateY(0) } }
+      `}</style>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: "100%", borderRadius: 24, padding: "26px 22px 22px",
+        background: "linear-gradient(160deg, rgba(40,15,80,0.95), rgba(15,5,45,0.95))",
+        border: `1.5px solid ${NEON.magenta.core}`,
+        boxShadow: `0 0 28px ${NEON.magenta.soft}, 0 0 60px ${NEON.blue.soft}, inset 0 0 24px ${NEON.magenta.soft}`,
+        position: "relative", animation: "qrPopIn 280ms cubic-bezier(0.2,0.8,0.2,1)",
+      }}>
+        <button onClick={onClose} style={{
+          position: "absolute", top: 14, right: 14,
+          width: 32, height: 32, borderRadius: "50%",
+          background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+          color: "#fff", fontSize: 18, cursor: "pointer", display: "grid", placeItems: "center",
+        }}>×</button>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.18em", textTransform: "uppercase" }}>AX SHISHA · Member QR</div>
+          <div style={{ fontFamily: "Sora", fontWeight: 700, fontSize: 19, color: "#fff", marginTop: 6 }}>請出示給店員掃描</div>
+          <div style={{ fontFamily: "Inter", fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 4, lineHeight: 1.5 }}>結帳時掃描此碼，消費將自動累積點數</div>
+        </div>
+        <div style={{
+          marginTop: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+          padding: "10px 14px", borderRadius: 12,
+          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+        }}>
+          <Avatar name={ME.name} color="blue" size={32} />
+          <div>
+            <div style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 12, color: "#fff" }}>你的會員</div>
+            <div style={{ fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.55)" }}>{ME.handle}</div>
+          </div>
+          <div style={{ flex: 1 }} />
+          <span style={{
+            fontFamily: "Sora", fontSize: 10, fontWeight: 700,
+            padding: "3px 9px", borderRadius: 999,
+            background: `linear-gradient(135deg, ${NEON.blue.core}, ${NEON.blue.glow})`,
+            color: "#fff", boxShadow: `0 0 8px ${NEON.blue.soft}`,
+          }}>{ME.level}</span>
+        </div>
+        <div style={{
+          marginTop: 18, padding: 16, borderRadius: 18, background: "#fff",
+          boxShadow: `0 0 24px ${NEON.magenta.soft}, 0 0 48px ${NEON.blue.soft}`,
+          display: "grid", placeItems: "center",
+        }}>
+          <div style={{
+            width: 220, height: 220, display: "grid",
+            gridTemplateColumns: `repeat(${size}, 1fr)`,
+            gridTemplateRows: `repeat(${size}, 1fr)`,
+            position: "relative",
+          }}>
+            {cells.map(({ i, j, on }) => {
+              const filled = isFinder(i, j) ? finderOn(i, j) : on;
+              return <div key={`${i}-${j}`} style={{ background: filled ? "#0a0524" : "transparent", borderRadius: 1 }} />;
+            })}
+            <div style={{
+              position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+              width: 44, height: 44, borderRadius: 10, background: "#fff",
+              display: "grid", placeItems: "center", boxShadow: "0 0 0 4px #fff",
+            }}>
+              <span style={{ fontFamily: "'Orbitron',Sora", fontWeight: 900, fontSize: 16, color: "transparent", WebkitTextStroke: `1.2px ${NEON.blue.core}` }}>AX</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 14, textAlign: "center", fontFamily: "'Orbitron',monospace", fontWeight: 700, fontSize: 14, color: "#fff", letterSpacing: "0.18em", textShadow: `0 0 8px ${NEON.magenta.glow}` }}>
+          {memberCode}
+        </div>
+        <div style={{ marginTop: 6, textAlign: "center", fontFamily: "Inter", fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
+          QR Code 每 60 秒自動更新
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Bottom Nav ───────────────────────────────────────────────
+
+function BottomNav({ current, setCurrent, onShowQr }) {
+  const items = [
+    { id: "leaderboard", label: "排行榜", icon: ICONS.trophy },
+    { id: "qr",          label: "會員碼", icon: ICONS.qr, primary: true },
+    { id: "rewards",     label: "福利",   icon: ICONS.gift },
+  ];
+  return (
+    <div style={{
+      position: "absolute", bottom: 0, left: 0, right: 0, paddingBottom: 22,
+      background: "linear-gradient(180deg, transparent 0%, rgba(5,1,22,0.85) 30%, rgba(5,1,22,0.98) 100%)",
+      backdropFilter: "blur(14px)", borderTop: "1px solid rgba(255,255,255,0.06)", zIndex: 10,
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", padding: "10px 16px 4px" }}>
+        {items.map(it => {
+          const active = current === it.id;
+          if (it.primary) {
+            return (
+              <div key={it.id} style={{ display: "grid", placeItems: "center" }}>
+                <button onClick={onShowQr} style={{
+                  width: 52, height: 52, borderRadius: "50%", border: "none",
+                  background: `linear-gradient(135deg, ${NEON.magenta.core}, ${NEON.blue.core})`,
+                  color: "#fff", display: "grid", placeItems: "center",
+                  cursor: "pointer", marginTop: -22,
+                  boxShadow: `0 0 18px ${NEON.magenta.soft}, 0 0 32px ${NEON.blue.soft}`,
+                }}>{it.icon(24)}</button>
+              </div>
+            );
+          }
+          return (
+            <button key={it.id} onClick={() => setCurrent(it.id)} style={{
+              background: "transparent", border: "none", padding: "6px 0 2px",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+              cursor: "pointer",
+              color: active ? "#fff" : "rgba(255,255,255,0.45)",
+              filter: active ? `drop-shadow(0 0 6px ${NEON.blue.core}) drop-shadow(0 0 14px ${NEON.blue.glow})` : "none",
+            }}>
+              {it.icon(22)}
+              <div style={{ fontFamily: "Sora", fontWeight: active ? 700 : 500, fontSize: 10, letterSpacing: "0.04em" }}>{it.label}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", paddingTop: 6 }}>
+        <div style={{ width: 134, height: 5, borderRadius: 999, background: "rgba(255,255,255,0.3)" }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Status Bar ───────────────────────────────────────────────
+
+function StatusBar() {
+  return (
+    <div style={{
+      position: "absolute", top: 0, left: 0, right: 0, height: 44,
+      padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+      fontFamily: "Sora", fontWeight: 700, fontSize: 13, color: "#fff",
+      zIndex: 5, pointerEvents: "none",
+    }}>
+      <div>9:41</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <svg width="16" height="11" viewBox="0 0 16 11" fill="#fff">
+          <rect x="0" y="7" width="3" height="4" rx="0.5" />
+          <rect x="4.3" y="4.5" width="3" height="6.5" rx="0.5" />
+          <rect x="8.7" y="2" width="3" height="9" rx="0.5" />
+          <rect x="13" y="0" width="3" height="11" rx="0.5" />
+        </svg>
+        <div style={{ width: 26, height: 12, border: "1.5px solid rgba(255,255,255,0.85)", borderRadius: 3.5, position: "relative", marginLeft: 2 }}>
+          <div style={{ position: "absolute", inset: 1.5, background: "#fff", borderRadius: 1.5, width: "80%" }} />
+          <div style={{ position: "absolute", right: -3, top: 3, width: 1.5, height: 4, background: "rgba(255,255,255,0.85)", borderRadius: 1 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Phone Frame ──────────────────────────────────────────────
+
+function PhoneFrame({ children, glow = "blue" }) {
+  const c = NEON[glow];
+  return (
+    <div style={{
+      width: 390, height: 844, borderRadius: 54, padding: 10,
+      background: "#0a0a0e", border: "1px solid #1a1a22",
+      boxShadow: `0 0 0 1.5px #2a2a35, 0 0 30px ${c.soft}, 0 0 60px ${c.soft}, 0 30px 80px rgba(0,0,0,0.5)`,
+      position: "relative", flexShrink: 0,
+    }}>
+      <div style={{ width: "100%", height: "100%", borderRadius: 44, overflow: "hidden", position: "relative", background: "#050116" }}>
+        <div style={{
+          position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)",
+          width: 120, height: 32, borderRadius: 999, background: "#000", zIndex: 20,
+        }} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────
+
+function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [tab, setTab] = useState("leaderboard");
+  const [qrOpen, setQrOpen] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [tab, loggedIn]);
+
+  let screen, glow;
+  if (!loggedIn) {
+    screen = <LoginScreen onLogin={() => setLoggedIn(true)} />;
+    glow = "magenta";
+  } else if (tab === "leaderboard") {
+    screen = <LeaderboardScreen />;
+    glow = "blue";
+  } else {
+    screen = <RewardsScreen />;
+    glow = "magenta";
+  }
+
+  const navBtnStyle = (active) => ({
+    padding: "8px 14px", borderRadius: 10,
+    border: `1px solid ${active ? NEON.blue.core : "rgba(255,255,255,0.12)"}`,
+    background: active ? NEON.blue.soft : "rgba(255,255,255,0.05)",
+    color: "#fff", fontFamily: "Sora", fontSize: 12, fontWeight: 600,
+    cursor: "pointer", backdropFilter: "blur(8px)",
+    boxShadow: active ? `0 0 12px ${NEON.blue.soft}` : "none",
+  });
+
+  return (
+    <div style={{
+      minHeight: "100vh", width: "100%", background: "#020010",
+      backgroundImage: `
+        radial-gradient(circle at 20% 30%, oklch(0.18 0.18 280 / 0.5), transparent 50%),
+        radial-gradient(circle at 80% 70%, oklch(0.18 0.20 340 / 0.45), transparent 50%)
+      `,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexWrap: "wrap", gap: 48, padding: "48px 24px",
+    }}>
+      <div style={{ position: "fixed", top: 16, left: 16, zIndex: 100, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={() => { setLoggedIn(false); setTab("leaderboard"); }} style={navBtnStyle(false)}>登出</button>
+        {loggedIn && (
+          <>
+            <button onClick={() => setTab("leaderboard")} style={navBtnStyle(tab === "leaderboard")}>排行榜</button>
+            <button onClick={() => setTab("rewards")} style={navBtnStyle(tab === "rewards")}>福利中心</button>
+          </>
+        )}
+      </div>
+      <PhoneFrame glow={glow}>
+        <StatusBar />
+        <div ref={scrollRef} style={{ width: "100%", height: "100%", overflowY: "auto", overflowX: "hidden", scrollbarWidth: "none" }}>
+          {screen}
+        </div>
+        {loggedIn && <BottomNav current={tab} setCurrent={setTab} onShowQr={() => setQrOpen(true)} />}
+        {loggedIn && qrOpen && <MemberQrModal onClose={() => setQrOpen(false)} />}
+      </PhoneFrame>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
